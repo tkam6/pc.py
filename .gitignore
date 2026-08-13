@@ -1,0 +1,10 @@
+# General
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/
+**/mypy_cache/
+
+# Project root
+build/
+tmp/
+venv/
