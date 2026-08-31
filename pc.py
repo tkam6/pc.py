@@ -57,7 +57,7 @@ VALID_TOML_BOOL_KEYS = {
     "show-modules"   : "show_mods",
 }
 VALID_TOML_STR_KEYS = {
-    "build-dir"      : "build_dir",
+    "build-directory": "build_dir",
     "output-filename": "out_filename",
 }
 if not sys.argv:
@@ -133,7 +133,7 @@ def warn(*msg: str) -> None:
 def err(*msg: str) -> None:
     print(f"{ANSI_BOLD}{ANSI_RED_4}E:{ANSI_RESET}", *msg, file=sys.stderr)
 
-def fatal(*msg: str, ret: int) -> None | ty.NoReturn:
+def fatal(*msg: str, ret: int) -> ty.NoReturn:
     print(f"{ANSI_BOLD}{ANSI_RED_4}F:{ANSI_RESET}", *msg, file=sys.stderr)
     sys.exit(ret)
 
@@ -142,35 +142,35 @@ def fatal(*msg: str, ret: int) -> None | ty.NoReturn:
 ### CONFIG FILE
 ###############################################################################
 
-def read_toml_file(filepath: str) -> dict[str, ty.Any] | tuple[Exception, int]:
+def read_toml_file(filepath: str) -> dict[str, ty.Any] | ty.NoReturn:
     try:
         return tl.load(open(filepath, "rb"))
     except FileNotFoundError as e:
-        return (e, RC.FILE_404)
+        pass
     except PermissionError as e:
-        return (e, RC.ACCESS_DENIED)
+        fatal(f"access denied: {filepath}", ret=RC.ACCESS_DENIED)
     except IsADirectoryError as e:
-        return (e, RC.IS_A_DIR)
+        fatal(f"is a directory: {filepath}", ret=RC.IS_A_DIR)
     except OSError as e:
-        return (e, RC.OS_ERR)
+        fatal(f"OS error; {e.strerror}", ret=RC.OS_ERR)
     except tl.TOMLDecodeError as e:
-        return (e, RC.TOML_DECODE_ERR)
+        fatal(f"cannot read TOML: {filepath}", ret=RC.TOML_DECODE_ERR)
+    return {}
 
 
 def get_config_from_toml(
         config_obj: "Config",
         toml_data: dict[str, ty.Any]
     ) -> "Config" | ty.NoReturn:
-
     for key, value in toml_data.items():
         if key in VALID_TOML_BOOL_KEYS and not isinstance(value, bool):
             fatal(
-                f"expected bool for key {key} in config file, got {value.__class__.__name__}",
+                f"expected bool for key '{key}' in config file, got {value.__class__.__name__}",
                 ret=RC.TOML_INV_TYPE,
             )
         elif key in VALID_TOML_STR_KEYS and not isinstance(value, str):
             fatal(
-                f"expected str for key {key} in config file: {value.__class__.__name__}",
+                f"expected str for key '{key}' in config file: {value.__class__.__name__}",
                 ret=RC.TOML_INV_TYPE,
             )
         if key in ("standalone", "onefile"):
@@ -262,15 +262,11 @@ def parse_args(config_obj: Config) -> Config:
 
         i += 1
 
-    if len(config_obj.args) < MIN_ARGS:
+    args_len = len(config_obj.args)
+    if not (MIN_ARGS <= args_len <= MIN_ARGS):
         fatal(
-            f"argument underflow; {len(config_obj.args)} not in [{MIN_ARGS}, {MAX_ARGS}]",
+            f"argument {"underflow" if args_len < MIN_ARGS else "overflow"}; {args_len} not in [{MIN_ARGS}, {MAX_ARGS}]",
             ret=RC.ARG_UNDERFLOW,
-        )
-    elif len(config_obj.args) > MAX_ARGS:
-        fatal(
-            f"argument overflow; {len(config_obj.args)} not in [{MIN_ARGS}, {MAX_ARGS}]",
-            ret=RC.ARG_OVERFLOW,
         )
 
     return config_obj
@@ -285,10 +281,7 @@ def main() -> None:
 
     config = Config()
     toml_data = read_toml_file("./pc-config.toml")
-    if isinstance(toml_data, tuple):
-        if toml_data[1] != RC.FILE_404:
-            raise NotImplementedError("yo wait up")
-        config = get_config_from_toml(config, {})
+    config = get_config_from_toml(config, toml_data)
     config = parse_args(config)
 
     # not sys.executable as it'll point to current prog when compiled
@@ -361,19 +354,19 @@ def main() -> None:
     # actually fucking run
     proc_done = sp.run([i for i in cmd if i])
     if proc_done.returncode != 0:
-        fatal("errors encountered", ret=RC.SOME_FUCKING_ERR)
+        fatal("Nuitka errors encountered", ret=RC.SOME_FUCKING_ERR)
 
     # rename build.dist to build, build.build to tmp
     if config.rename:
         if config.keep_tmp:
-            build_dot_build      = os.path.join(cwd, "build.build")
+            build_dot_build      = os.path.join(cwd, f"{build_dir}.build")
             build_dot_build_disp = condense_path(os.path.abspath(build_dot_build))
             sh.move(build_dot_build, tmp_dir)
-            info(f"moved {build_dot_build_disp} to tmp")
-        build_dot_dist      = os.path.join(cwd, build_dir + ".dist")
+            info(f"moved {build_dot_build_disp} to {tmp_dir_disp}")
+        build_dot_dist      = os.path.join(cwd, f"{build_dir}.dist")
         build_dot_dist_disp = condense_path(os.path.abspath(build_dot_dist))
         sh.move(build_dot_dist, build_dir)
-        info(f"moved {build_dot_dist_disp} to {build_dir}")
+        info(f"moved {build_dot_dist_disp} to {build_dir_disp}")
 
     # run output program
     if config.run:
