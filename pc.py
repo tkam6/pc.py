@@ -43,6 +43,7 @@ VALID_FLAGS = {
 }
 VALID_OPTS = {
     "-b", "--build-dir",
+    "-i", "--data-dir",
     "-n", "--output-filename",
 }
 VALID_TOML_BOOL_KEYS = {
@@ -58,6 +59,7 @@ VALID_TOML_BOOL_KEYS = {
 }
 VALID_TOML_STR_KEYS = {
     "build-directory": "build_dir",
+    "data-directory" : "data_dir",
     "output-filename": "out_filename",
 }
 if not sys.argv:
@@ -92,7 +94,7 @@ class RC(enum.IntEnum):
 
 
 ###############################################################################
-# GENERAL
+### GENERAL
 ###############################################################################
 
 @dcs.dataclass
@@ -100,6 +102,7 @@ class Config:
     args        : list[str]  = dcs.field(default_factory=list)
     build_dir   : str | None = None
     compiler    : str | None = None
+    data_dirs   : list[str]  = dcs.field(default_factory=list)
     docstrs     : bool       = False
     force       : bool       = False
     keep_tmp    : bool       = True
@@ -186,7 +189,7 @@ def get_config_from_toml(
 
 
 ###############################################################################
-# ARGV PARSING
+### ARGV PARSING
 ###############################################################################
 
 def parse_args(config_obj: Config) -> Config:
@@ -211,6 +214,8 @@ def parse_args(config_obj: Config) -> Config:
                     fatal(f"unknown option/flag: {param}", ret=RC.UNKNOWN_OPT_VAL)
             argv[i : i + 1] = [f"-{c}" for c in param[1 :]]
             continue
+        if param in VALID_OPTS and i >= len(argv) - 1:
+            fatal(f"expected value: '{param}'", ret=RC.EXPECTED_OPT_VAL)
 
         match param:
             # flags
@@ -243,13 +248,12 @@ def parse_args(config_obj: Config) -> Config:
                 config_obj.rename = False
             # options
             case "-b" | "--build-dir":
-                if i == len(argv) - 1:
-                    fatal(f"expected value: {param}", ret=RC.EXPECTED_OPT_VAL)
                 config_obj.build_dir = argv[i + 1]
                 i += 1
+            case "-i" | "--data-dir":
+                config_obj.data_dirs.append(argv[i + 1])
+                i += 1
             case "-n" | "--output-filename":
-                if i == len(argv) - 1:
-                    fatal(f"expected value: '{param}'", ret=RC.EXPECTED_OPT_VAL)
                 config_obj.out_filename = argv[i + 1]
                 i += 1
             # special
@@ -319,11 +323,15 @@ def main() -> None:
         "--no-deployment-flag=self-execution",
         "--python-flag=no_docstrings" if not config.docstrs          else "",
         "--lto=yes"                   if config.lto                  else "--lto=no",
-        f"--{config.compiler}"           if config.compiler is not None else "",
+        f"--{config.compiler}"        if config.compiler is not None else "",
         "--remove-output"             if not config.keep_tmp         else "",
         "--no-pyi-file"               if not config.pyi              else "",
         "--quiet"                     if config.quiet                else "",
         "--show-modules"              if config.show_mods            else "",
+        *[
+            f"--include-data-dir={dir_}={os.path.basename(os.path.abspath(dir_))}"
+            for dir_ in config.data_dirs
+        ],
         file,
     ]
 
