@@ -46,22 +46,19 @@ VALID_OPTS = {
     "-n", "--output-filename",
 }
 VALID_TOML_BOOL_KEYS = {
-    "standalone",
-    "onefile",
-    "clang",
-    "keep-docstrings",
-    "force",
-    "lto",
-    "show-modules",
-    "keep-pyi-file",
-    "quiet",
-    "rename",
-    "run",
-    "remove-tmp-dir",
+    "force"          : "force",
+    "keep-pyi-file"  : "pyi",
+    "keep-tmp-dir"   : "keep_tmp",
+    "keep-docstrings": "docstrs",
+    "lto"            : "lto",
+    "quiet"          : "quiet",
+    "run"            : "run",
+    "rename"         : "rename",
+    "show-modules"   : "show_mods",
 }
 VALID_TOML_STR_KEYS = {
-    "build-dir",
-    "output-filename",
+    "build-dir"      : "build_dir",
+    "output-filename": "out_filename",
 }
 if not sys.argv:
     PROG = "[main]"
@@ -164,29 +161,14 @@ def get_config_from_toml(
         config_obj: "Config",
         toml_data: dict[str, ty.Any]
     ) -> "Config" | ty.NoReturn:
-    flag_map = {
-        "force"          : "force",
-        "keep-pyi-file"  : "pyi",
-        "keep-tmp-dir"   : "keep_tmp",
-        "keep-docstrings": "docstrs",
-        "lto"            : "lto",
-        "quiet"          : "quiet",
-        "run"            : "run",
-        "rename"         : "rename",
-        "show-modules"   : "show_mods",
-    }
-    opt_map = {
-        "build-dir"      : "build_dir",
-        "output-filename": "out_filename",
-    }
 
     for key, value in toml_data.items():
-        if key in flag_map and not isinstance(value, bool):
+        if key in VALID_TOML_BOOL_KEYS and not isinstance(value, bool):
             fatal(
                 f"expected bool for key {key} in config file, got {value.__class__.__name__}",
                 ret=RC.TOML_INV_TYPE,
             )
-        elif key in opt_map and not isinstance(value, str):
+        elif key in VALID_TOML_STR_KEYS and not isinstance(value, str):
             fatal(
                 f"expected str for key {key} in config file: {value.__class__.__name__}",
                 ret=RC.TOML_INV_TYPE,
@@ -195,10 +177,10 @@ def get_config_from_toml(
             config_obj.mode = key
         elif key == "clang":
             config_obj.compiler = "clang"
-        elif key in flag_map:
-            setattr(config_obj, flag_map[key], value)
-        elif key in opt_map:
-            setattr(config_obj, opt_map[key], value)
+        elif key in VALID_TOML_BOOL_KEYS:
+            setattr(config_obj, VALID_TOML_BOOL_KEYS[key], value)
+        elif key in VALID_TOML_STR_KEYS:
+            setattr(config_obj, VALID_TOML_STR_KEYS[key], value)
 
     return config_obj
 
