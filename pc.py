@@ -196,9 +196,9 @@ def get_config_from_toml(
         elif key == "clang":
             config_obj.compiler = "clang"
         elif key in flag_map:
-            setattr(config_obj, key, value)
+            setattr(config_obj, flag_map[key], value)
         elif key in opt_map:
-            setattr(config_obj, key, value)
+            setattr(config_obj, opt_map[key], value)
 
     return config_obj
 
