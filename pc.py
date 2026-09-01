@@ -1,7 +1,4 @@
 #!/usr/bin/env -S python3 -BOO
-# TODO: add a config file, which can include things like extra files that need
-# to be copied into the build directory so that user willn't need to give those
-# in command line every damn time
 import dataclasses as dcs
 import enum
 import os
@@ -83,6 +80,7 @@ class RC(enum.IntEnum):
     BUILD_DIR_EXISTS      = enum.auto()
     TMP_DIR_EXISTS        = enum.auto()
     CANT_REMOVE_BUILD_DIR = enum.auto()
+    CANT_TMP_BUILD_DIR    = enum.auto()
     SOME_FUCKING_ERR      = enum.auto()
     FILE_404              = enum.auto()
     DIR_404               = enum.auto()
@@ -343,26 +341,44 @@ def main() -> None:
     # remove previous build directory
     try:
         sh.rmtree(build_dir)
+        info(f"removed existing build dir {build_dir_disp}")
     except FileNotFoundError:
-        pass
+        info(f"could not find {build_dir_disp}; skipping")
+    except PermissionError:
+        fatal(
+            f"access denied to remove existing build dir {build_dir_disp}",
+            ret=RC.ACCESS_DENIED,
+        )
     except sh.Error:
-        fatal(f"cannot remove existing build dir {build_dir_disp}", ret=RC.CANT_REMOVE_BUILD_DIR)
-    info(f"removed dir {build_dir_disp}")
+        fatal(
+            f"cannot remove existing build dir {build_dir_disp}",
+            ret=RC.CANT_REMOVE_BUILD_DIR,
+        )
 
     # remove previous tmp directory
     try:
         sh.rmtree(tmp_dir)
+        info(f"removed tmp dir {tmp_dir_disp}")
     except FileNotFoundError:
-        pass
+        info(f"could not find {tmp_dir_disp}; skipping")
+    except PermissionError:
+        fatal(
+            f"access denied to remove existing tmp dir {tmp_dir_disp}",
+            ret=RC.ACCESS_DENIED,
+        )
     except sh.Error:
-        err(f"cannot remove existing tmp dir {tmp_dir_disp}")
-        sys.exit(3)
-    info(f"removed dir {tmp_dir_disp}")
+        fatal(
+          f"cannot remove existing tmp dir {tmp_dir_disp}",
+          ret=RC.CANT_TMP_BUILD_DIR,
+      )
 
     # actually fucking run
     proc_done = sp.run([i for i in cmd if i])
     if proc_done.returncode != 0:
-        fatal("Nuitka errors encountered", ret=RC.SOME_FUCKING_ERR)
+        fatal(
+            f"errors encountered; Nuitka exited with code {proc_done.returncode}",
+            ret=RC.SOME_FUCKING_ERR,
+        )
 
     # rename build.dist to build, build.build to tmp
     if config.rename:
