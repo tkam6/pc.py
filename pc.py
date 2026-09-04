@@ -15,13 +15,15 @@ import typing as ty
 ### CONSTANTS AND ERROR CODES
 ###############################################################################
 
-ANSI_RESET = "\x1b[0m"
-ANSI_BOLD = "\x1b[1m"
-ANSI_RED_4 = "\x1b[91m"
-ANSI_GREEN_4 = "\x1b[92m"
+ANSI_RESET    = "\x1b[0m"
+ANSI_BOLD     = "\x1b[1m"
+ANSI_RED_4    = "\x1b[91m"
+ANSI_GREEN_4  = "\x1b[92m"
 ANSI_YELLOW_4 = "\x1b[93m"
-MIN_ARGS = 1
+
+MIN_ARGS = 0
 MAX_ARGS = 1
+
 VALID_FLAGS = {
     "--",
     "--standalone",
@@ -33,10 +35,11 @@ VALID_FLAGS = {
     "-l", "--enable-lto",
     "-m", "--show-modules",
     "-p", "--keep-pyi-file",
-    "-Q", "--no-quiet",
+    "-q", "--no-quiet",
     "-R", "--no-rename",
     "-r", "--run",
     "-T", "--remove-tmp-dir",
+    "-u", "--dry-run",
 }
 VALID_OPTS = {
     "-b", "--build-dir",
@@ -58,6 +61,7 @@ VALID_TOML_STR_KEYS = {
     "build-directory": "build_dir",
     "data-directory" : "data_dir",
     "output-filename": "out_filename",
+    "file"           : "file",
 }
 if not sys.argv:
     PROG = "[main]"
@@ -89,6 +93,7 @@ class RC(enum.IntEnum):
     OS_ERR                = enum.auto()
     TOML_DECODE_ERR       = enum.auto()
     TOML_INV_TYPE         = enum.auto()
+    NO_INPUT_FILE         = enum.auto()
 
 
 ###############################################################################
@@ -102,20 +107,34 @@ class Config:
     compiler    : str | None = None
     data_dirs   : list[str]  = dcs.field(default_factory=list)
     docstrs     : bool       = False
+    dry_run     : bool       = False
     force       : bool       = False
     keep_tmp    : bool       = True
     lto         : bool       = False
     mode        : str        = "standalone"
     out_filename: str | None = None
-    quiet       : bool       = True
+    quiet       : bool       = False
     pyi         : bool       = False
     rename      : bool       = True
     run         : bool       = False
     show_mods   : bool       = False
+    file        : str | None = None
 
 
 def condense_path(path: str) -> str:
     return re.sub(f"^{USER_DIR}", "~", path)
+
+
+def pretty_prn_list_of_str(
+    l          : list[str],
+    indent     : int = 0,
+    indent_size: int = 4
+) -> None:
+    indent_block = indent_size * " "
+    print(indent * indent_block + "[")
+    for s in l:
+        print((indent + 1) * indent_block + repr(s), end=",\n")
+    print(indent * indent_block + "]")
 
 
 ###############################################################################
@@ -166,12 +185,12 @@ def get_config_from_toml(
     for key, value in toml_data.items():
         if key in VALID_TOML_BOOL_KEYS and not isinstance(value, bool):
             fatal(
-                f"expected bool for key '{key}' in config file, got {value.__class__.__name__}",
+                f"expected bool for key {key} in config file, got {value.__class__.__name__}",
                 ret=RC.TOML_INV_TYPE,
             )
         elif key in VALID_TOML_STR_KEYS and not isinstance(value, str):
             fatal(
-                f"expected str for key '{key}' in config file: {value.__class__.__name__}",
+                f"expected str for key {key} in config file, got {value.__class__.__name__}",
                 ret=RC.TOML_INV_TYPE,
             )
         if key in ("standalone", "onefile"):
@@ -232,8 +251,8 @@ def parse_args(config_obj: Config) -> Config:
                 config_obj.pyi = True
             case "-T" | "--remove-tmp-dir":
                 config_obj.keep_tmp = False
-            case "-Q" | "--no-quiet":
-                config_obj.quiet = False
+            case "-q" | "--no-quiet":
+                config_obj.quiet = True
             case "-m" | "--show-modules":
                 config_obj.show_mods = True
             case "--standalone":
@@ -244,6 +263,8 @@ def parse_args(config_obj: Config) -> Config:
                 config_obj.compiler = "clang"
             case "-R" | "--no-rename":
                 config_obj.rename = False
+            case "-u" | "--dry-run":
+                config_obj.dry_run = True
             # options
             case "-b" | "--build-dir":
                 config_obj.build_dir = argv[i + 1]
@@ -271,6 +292,10 @@ def parse_args(config_obj: Config) -> Config:
             ret=RC.ARG_UNDERFLOW,
         )
 
+    for i, arg in enumerate(config_obj.args):
+        if i == 0:
+            config_obj.file = arg
+
     return config_obj
 
 
@@ -280,20 +305,30 @@ def parse_args(config_obj: Config) -> Config:
 
 def main() -> None:
     cwd = os.getcwd()
+    toml_file = os.path.join(cwd, "pc-config.toml")
+    debug(f"cwd: {cwd}")
+    debug(f"toml config file: {toml_file}")
 
-    config = Config()
-    toml_data = read_toml_file("./pc-config.toml")
-    config = get_config_from_toml(config, toml_data)
-    config = parse_args(config)
+    config    = Config()
+    toml_data = read_toml_file(toml_file)
+    config    = get_config_from_toml(config, toml_data)
+    config    = parse_args(config)
+    debug(f"final config: {str(config)}")
 
     # not sys.executable as it'll point to current prog when compiled
     python_xble = sh.which("python3")
     if python_xble is None:
         fatal("cannot find Python", ret=RC.NO_PYTHON)
     python_xble_disp = condense_path(python_xble)
-    info(f"using binary {python_xble_disp}")
+    info(f"using Python binary {python_xble_disp}")
 
-    file           = config.args[0]
+    # input file
+    file = config.file
+    if file is None:
+        fatal("no input file", ret=RC.NO_INPUT_FILE)
+    file = os.path.abspath(os.path.expanduser(file))
+    info(f"using input file {file}")
+
     base_nm        = os.path.splitext(os.path.basename(file))[0]
     build_dir_nm   = ("build" if config.build_dir is None else config.build_dir)
     out_filename   = (base_nm if config.out_filename is None else config.out_filename)
@@ -332,6 +367,11 @@ def main() -> None:
         ],
         file,
     ]
+    cmd = [i for i in cmd if i]
+
+    if config.dry_run:
+        pretty_prn_list_of_str(cmd)
+        return
 
     if os.path.isdir(build_dir) and not config.force:
         fatal(f"build directory already exists: {build_dir}", ret=RC.BUILD_DIR_EXISTS)
@@ -343,7 +383,7 @@ def main() -> None:
         sh.rmtree(build_dir)
         info(f"removed existing build dir {build_dir_disp}")
     except FileNotFoundError:
-        info(f"could not find {build_dir_disp}; skipping")
+        info(f"could not find existing previous build dir {build_dir_disp}; skipping")
     except PermissionError:
         fatal(
             f"access denied to remove existing build dir {build_dir_disp}",
@@ -360,7 +400,7 @@ def main() -> None:
         sh.rmtree(tmp_dir)
         info(f"removed tmp dir {tmp_dir_disp}")
     except FileNotFoundError:
-        info(f"could not find {tmp_dir_disp}; skipping")
+        info(f"could not find existing tmp dir {tmp_dir_disp}; skipping")
     except PermissionError:
         fatal(
             f"access denied to remove existing tmp dir {tmp_dir_disp}",
@@ -373,7 +413,7 @@ def main() -> None:
       )
 
     # actually fucking run
-    proc_done = sp.run([i for i in cmd if i])
+    proc_done = sp.run(cmd)
     if proc_done.returncode != 0:
         fatal(
             f"errors encountered; Nuitka exited with code {proc_done.returncode}",
