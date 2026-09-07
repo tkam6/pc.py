@@ -21,6 +21,13 @@ ANSI_RED_4    = "\x1b[91m"
 ANSI_GREEN_4  = "\x1b[92m"
 ANSI_YELLOW_4 = "\x1b[93m"
 
+DEBUG = 10
+INFO = 20
+WARN = 30
+ERR = 40
+FATAL = 50
+LOG_LVL = INFO
+
 MIN_ARGS = 0
 MAX_ARGS = 1
 
@@ -29,21 +36,23 @@ VALID_FLAGS = {
     "--standalone",
     "--onefile",
     "--clang",
-    "-d", "--keep-docstrings",
+    "-d", "--debug",
     "-f", "--force",
     "-h", "--help",
+    "-i", "--info",
     "-l", "--enable-lto",
     "-m", "--show-modules",
     "-p", "--keep-pyi-file",
-    "-q", "--no-quiet",
+    "-q", "--quiet",
     "-R", "--no-rename",
+    "-s", "--keep-docstrings",
     "-r", "--run",
     "-T", "--remove-tmp-dir",
     "-u", "--dry-run",
 }
 VALID_OPTS = {
     "-b", "--build-dir",
-    "-i", "--data-dir",
+    "-y", "--full-dir",
     "-n", "--output-filename",
 }
 VALID_TOML_BOOL_KEYS = {
@@ -59,10 +68,13 @@ VALID_TOML_BOOL_KEYS = {
 }
 VALID_TOML_STR_KEYS = {
     "build-directory": "build_dir",
-    "data-directory" : "data_dir",
     "output-filename": "out_filename",
     "file"           : "file",
 }
+VALID_TOML_LIST_KEYS = {
+    "full-directory" : "full_dirs",
+}
+
 if not sys.argv:
     PROG = "[main]"
 else:
@@ -105,11 +117,13 @@ class Config:
     args        : list[str]  = dcs.field(default_factory=list)
     build_dir   : str | None = None
     compiler    : str | None = None
-    data_dirs   : list[str]  = dcs.field(default_factory=list)
+    file        : str | None = None
+    full_dirs   : list[str]  = dcs.field(default_factory=list)
     docstrs     : bool       = False
     dry_run     : bool       = False
     force       : bool       = False
     keep_tmp    : bool       = True
+    log_lvl     : int        = WARN
     lto         : bool       = False
     mode        : str        = "standalone"
     out_filename: str | None = None
@@ -118,7 +132,6 @@ class Config:
     rename      : bool       = True
     run         : bool       = False
     show_mods   : bool       = False
-    file        : str | None = None
 
 
 def condense_path(path: str) -> str:
@@ -142,19 +155,24 @@ def pretty_prn_list_of_str(
 ###############################################################################
 
 def debug(*msg: str) -> None:
-    print(f"{ANSI_BOLD}D:{ANSI_RESET}", *msg, file=sys.stderr)
+    if LOG_LVL <= DEBUG:
+        print(f"{ANSI_BOLD}D:{ANSI_RESET}", *msg, file=sys.stderr)
 
 def info(*msg: str) -> None:
-    print(f"{ANSI_BOLD}I:{ANSI_RESET}", *msg, file=sys.stderr)
+    if LOG_LVL <= INFO:
+        print(f"{ANSI_BOLD}I:{ANSI_RESET}", *msg, file=sys.stderr)
 
 def warn(*msg: str) -> None:
-    print(f"{ANSI_BOLD}{ANSI_YELLOW_4}W:{ANSI_RESET}", *msg, file=sys.stderr)
+    if LOG_LVL <= WARN:
+        print(f"{ANSI_BOLD}{ANSI_YELLOW_4}W:{ANSI_RESET}", *msg, file=sys.stderr)
 
 def err(*msg: str) -> None:
-    print(f"{ANSI_BOLD}{ANSI_RED_4}E:{ANSI_RESET}", *msg, file=sys.stderr)
+    if LOG_LVL <= ERR:
+        print(f"{ANSI_BOLD}{ANSI_RED_4}E:{ANSI_RESET}", *msg, file=sys.stderr)
 
 def fatal(*msg: str, ret: int) -> ty.NoReturn:
-    print(f"{ANSI_BOLD}{ANSI_RED_4}F:{ANSI_RESET}", *msg, file=sys.stderr)
+    if LOG_LVL <= FATAL:
+        print(f"{ANSI_BOLD}{ANSI_RED_4}F:{ANSI_RESET}", *msg, file=sys.stderr)
     sys.exit(ret)
 
 
@@ -164,7 +182,9 @@ def fatal(*msg: str, ret: int) -> ty.NoReturn:
 
 def read_toml_file(filepath: str) -> dict[str, ty.Any] | ty.NoReturn:
     try:
-        return tl.load(open(filepath, "rb"))
+        contents =  tl.load(f := open(filepath, "rb"))
+        f.close()
+        return contents
     except FileNotFoundError as e:
         pass
     except PermissionError as e:
@@ -193,6 +213,17 @@ def get_config_from_toml(
                 f"expected str for key {key} in config file, got {value.__class__.__name__}",
                 ret=RC.TOML_INV_TYPE,
             )
+        elif key in VALID_TOML_LIST_KEYS and not isinstance(value, list):
+            fatal(
+                f"expected list of strs for key {key} in config file, got {value.__class__.__name__}",
+                ret=RC.TOML_INV_TYPE,
+            )
+        elif key in VALID_TOML_LIST_KEYS and (tmp := [i for i in value if not isinstance(i, str)]):
+            fatal(
+                f"expected list of strs key {key} in config file, got other types",
+                ret=RC.TOML_INV_TYPE,
+            )
+
         if key in ("standalone", "onefile"):
             config_obj.mode = key
         elif key == "clang":
@@ -201,6 +232,8 @@ def get_config_from_toml(
             setattr(config_obj, VALID_TOML_BOOL_KEYS[key], value)
         elif key in VALID_TOML_STR_KEYS:
             setattr(config_obj, VALID_TOML_STR_KEYS[key], value)
+        elif key in VALID_TOML_LIST_KEYS:
+            setattr(config_obj, VALID_TOML_LIST_KEYS[key], value)
 
     return config_obj
 
@@ -239,19 +272,23 @@ def parse_args(config_obj: Config) -> Config:
             case "-h" | "--help":
                 print("See the source, fuckass")
                 sys.exit(1)
+            case "-d" | "--debug":
+                config_obj.log_lvl = DEBUG
+            case "-i" | "--info":
+                config_obj.log_lvl = INFO
             case "-r" | "--run":
                 config_obj.run = True
             case "-f" | "--force":
                 config_obj.force = True
             case "-l" | "--enable-lto":
                 config_obj.lto = True
-            case "-d" | "--keep-docstrings":
+            case "-s" | "--keep-docstrings":
                 config_obj.docstrs = True
             case "-p" | "--keep-pyi-file":
                 config_obj.pyi = True
             case "-T" | "--remove-tmp-dir":
                 config_obj.keep_tmp = False
-            case "-q" | "--no-quiet":
+            case "-q" | "--quiet":
                 config_obj.quiet = True
             case "-m" | "--show-modules":
                 config_obj.show_mods = True
@@ -269,8 +306,8 @@ def parse_args(config_obj: Config) -> Config:
             case "-b" | "--build-dir":
                 config_obj.build_dir = argv[i + 1]
                 i += 1
-            case "-i" | "--data-dir":
-                config_obj.data_dirs.append(argv[i + 1])
+            case "-y" | "--full-dir":
+                config_obj.full_dirs.append(argv[i + 1])
                 i += 1
             case "-n" | "--output-filename":
                 config_obj.out_filename = argv[i + 1]
@@ -286,7 +323,7 @@ def parse_args(config_obj: Config) -> Config:
         i += 1
 
     args_len = len(config_obj.args)
-    if not (MIN_ARGS <= args_len <= MIN_ARGS):
+    if not (MIN_ARGS <= args_len <= MAX_ARGS):
         fatal(
             f"argument {"underflow" if args_len < MIN_ARGS else "overflow"}; {args_len} not in [{MIN_ARGS}, {MAX_ARGS}]",
             ret=RC.ARG_UNDERFLOW,
@@ -304,15 +341,21 @@ def parse_args(config_obj: Config) -> Config:
 ###############################################################################
 
 def main() -> None:
+    # manage execution of instructions and behaviour following non-fatal problems
+    non_fatal = False
+
     cwd = os.getcwd()
     toml_file = os.path.join(cwd, "pc-config.toml")
-    debug(f"cwd: {cwd}")
-    debug(f"toml config file: {toml_file}")
 
     config    = Config()
     toml_data = read_toml_file(toml_file)
     config    = get_config_from_toml(config, toml_data)
     config    = parse_args(config)
+
+    global LOG_LVL
+    LOG_LVL = config.log_lvl
+    debug(f"cwd: {cwd}")
+    debug(f"toml config file: {toml_file}")
     debug(f"final config: {str(config)}")
 
     # not sys.executable as it'll point to current prog when compiled
@@ -361,10 +404,6 @@ def main() -> None:
         "--no-pyi-file"               if not config.pyi              else "",
         "--quiet"                     if config.quiet                else "",
         "--show-modules"              if config.show_mods            else "",
-        *[
-            f"--include-data-dir={dir_}={os.path.basename(os.path.abspath(dir_))}"
-            for dir_ in config.data_dirs
-        ],
         file,
     ]
     cmd = [i for i in cmd if i]
@@ -432,11 +471,27 @@ def main() -> None:
         sh.move(build_dot_dist, build_dir)
         info(f"moved {build_dot_dist_disp} to {build_dir_disp}")
 
+    # copy full dirs into dist dir
+    for dir_ in config.full_dirs:
+        try:
+            dir_abs = os.path.abspath(os.path.expanduser(dir_))
+            sh.copytree(dir_abs, os.path.join(build_dir, os.path.basename(dir_abs)))
+            debug(f"full-copied {dir_}")
+        except FileNotFoundError:
+            err(f"cannot find {dir_} to full copy")
+            non_fatal = True
+        except sh.Error as e:
+            err(f"copy error: {e}")
+            non_fatal = True
+
     # run output program
     if config.run:
-        out_xble = os.path.join(build_dir, out_filename)
-        info(f"running {out_xble}")
-        sp.run([out_xble])
+        if non_fatal:
+            warn("skipping run due to previous errors")
+        else:
+            out_xble = os.path.join(build_dir, out_filename)
+            info(f"running {out_xble}")
+            sp.run([out_xble])
 
 
 if __name__ == "__main__":
