@@ -243,10 +243,11 @@ def get_config_from_toml(
 ###############################################################################
 
 def parse_args(config_obj: Config) -> Config:
-    argv             = sys.argv[1:]
-    parse_opts_flags = True
-    len_argv         = len(argv)
-    i                = 0
+    argv              = sys.argv[1:]
+    parse_opts_flags  = True
+    len_argv          = len(argv)
+    i                 = 0
+    alr_set_full_dirs = bool(config_obj.full_dirs)
 
     while i < len(argv):
         param = argv[i]
@@ -307,6 +308,9 @@ def parse_args(config_obj: Config) -> Config:
                 config_obj.build_dir = argv[i + 1]
                 i += 1
             case "-y" | "--full-dir":
+                if alr_set_full_dirs:
+                    config_obj.full_dirs = []
+                    alr_set_full_dirs = False
                 config_obj.full_dirs.append(argv[i + 1])
                 i += 1
             case "-n" | "--output-filename":
