@@ -275,46 +275,46 @@ def parse_args(config_obj: Config) -> Config:
                 sys.exit(1)
             case "-d" | "--debug":
                 config_obj.log_lvl = DEBUG
-            case "-i" | "--info":
-                config_obj.log_lvl = INFO
-            case "-r" | "--run":
-                config_obj.run = True
             case "-f" | "--force":
                 config_obj.force = True
+            case "-i" | "--info":
+                config_obj.log_lvl = INFO
             case "-l" | "--enable-lto":
                 config_obj.lto = True
-            case "-s" | "--keep-docstrings":
-                config_obj.docstrs = True
-            case "-p" | "--keep-pyi-file":
-                config_obj.pyi = True
-            case "-T" | "--remove-tmp-dir":
-                config_obj.keep_tmp = False
-            case "-q" | "--quiet":
-                config_obj.quiet = True
             case "-m" | "--show-modules":
                 config_obj.show_mods = True
+            case "-p" | "--keep-pyi-file":
+                config_obj.pyi = True
+            case "-q" | "--quiet":
+                config_obj.quiet = True
+            case "-R" | "--no-rename":
+                config_obj.rename = False
+            case "-r" | "--run":
+                config_obj.run = True
+            case "-s" | "--keep-docstrings":
+                config_obj.docstrs = True
+            case "-T" | "--remove-tmp-dir":
+                config_obj.keep_tmp = False
+            case "-u" | "--dry-run":
+                config_obj.dry_run = True
             case "--standalone":
                 config_obj.mode = "standalone"
             case "--onefile":
                 config_obj.mode = "onefile"
             case "--clang":
                 config_obj.compiler = "clang"
-            case "-R" | "--no-rename":
-                config_obj.rename = False
-            case "-u" | "--dry-run":
-                config_obj.dry_run = True
             # options
             case "-b" | "--build-dir":
                 config_obj.build_dir = argv[i + 1]
+                i += 1
+            case "-n" | "--output-filename":
+                config_obj.out_filename = argv[i + 1]
                 i += 1
             case "-y" | "--full-dir":
                 if alr_set_full_dirs:
                     config_obj.full_dirs = []
                     alr_set_full_dirs = False
                 config_obj.full_dirs.append(argv[i + 1])
-                i += 1
-            case "-n" | "--output-filename":
-                config_obj.out_filename = argv[i + 1]
                 i += 1
             # special
             case "--":
