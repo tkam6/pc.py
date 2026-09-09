@@ -21,11 +21,11 @@ ANSI_RED_4    = "\x1b[91m"
 ANSI_GREEN_4  = "\x1b[92m"
 ANSI_YELLOW_4 = "\x1b[93m"
 
-DEBUG = 10
-INFO = 20
-WARN = 30
-ERR = 40
-FATAL = 50
+DEBUG   = 10
+INFO    = 20
+WARN    = 30
+ERR     = 40
+FATAL   = 50
 LOG_LVL = INFO
 
 MIN_ARGS = 0
@@ -33,16 +33,16 @@ MAX_ARGS = 1
 
 VALID_FLAGS = {
     "--",
-    "--standalone",
-    "--onefile",
     "--clang",
+    "--onefile",
+    "--standalone",
+    "--keep-pyi-file",
     "-d", "--debug",
     "-f", "--force",
     "-h", "--help",
     "-i", "--info",
     "-l", "--enable-lto",
     "-m", "--show-modules",
-    "-p", "--keep-pyi-file",
     "-q", "--quiet",
     "-R", "--no-rename",
     "-s", "--keep-docstrings",
@@ -52,8 +52,10 @@ VALID_FLAGS = {
 }
 VALID_OPTS = {
     "-b", "--build-dir",
-    "-y", "--full-dir",
     "-n", "--output-filename",
+    "-p", "--package",
+    "-a", "--raw-dir",
+    "-y", "--full-dir",
 }
 VALID_TOML_BOOL_KEYS = {
     "force"          : "force",
@@ -72,7 +74,9 @@ VALID_TOML_STR_KEYS = {
     "file"           : "file",
 }
 VALID_TOML_LIST_KEYS = {
-    "full-directory" : "full_dirs",
+    "full-directories": "full_dirs",
+    "raw-files"       : "raw_files",
+    "packages"        : "pkgs",
 }
 
 if not sys.argv:
@@ -128,7 +132,9 @@ class Config:
     mode        : str        = "standalone"
     out_filename: str | None = None
     quiet       : bool       = False
+    pkgs        : list[str]  = dcs.field(default_factory=list)
     pyi         : bool       = False
+    raw_files   : list[str]  = dcs.field(default_factory=list)
     rename      : bool       = True
     run         : bool       = False
     show_mods   : bool       = False
@@ -139,10 +145,10 @@ def condense_path(path: str) -> str:
 
 
 def pretty_prn_list_of_str(
-    l          : list[str],
-    indent     : int = 0,
-    indent_size: int = 4
-) -> None:
+        l          : list[str],
+        indent     : int = 0,
+        indent_size: int = 4
+    ) -> None:
     indent_block = indent_size * " "
     print(indent * indent_block + "[")
     for s in l:
@@ -248,6 +254,8 @@ def parse_args(config_obj: Config) -> Config:
     len_argv          = len(argv)
     i                 = 0
     alr_set_full_dirs = bool(config_obj.full_dirs)
+    alr_set_raw_files = bool(config_obj.raw_files)
+    alr_set_pkgs      = bool(config_obj.pkgs)
 
     while i < len(argv):
         param = argv[i]
@@ -283,7 +291,7 @@ def parse_args(config_obj: Config) -> Config:
                 config_obj.lto = True
             case "-m" | "--show-modules":
                 config_obj.show_mods = True
-            case "-p" | "--keep-pyi-file":
+            case "--keep-pyi-file":
                 config_obj.pyi = True
             case "-q" | "--quiet":
                 config_obj.quiet = True
@@ -310,6 +318,16 @@ def parse_args(config_obj: Config) -> Config:
             case "-n" | "--output-filename":
                 config_obj.out_filename = argv[i + 1]
                 i += 1
+            case "-p" | "--package":
+                if alr_set_pkgs:
+                    config_obj.pkgs = []
+                    alr_set_pkgs = False
+                config_obj.pkgs.append(argv[i + 1])
+            case "-a" | "--raw-file":
+                if alr_set_raw_files:
+                    config_obj.raw_files = []
+                    alr_set_raw_files = False
+                config_obj.raw_files.append(argv[i + 1])
             case "-y" | "--full-dir":
                 if alr_set_full_dirs:
                     config_obj.full_dirs = []
@@ -408,6 +426,7 @@ def main() -> None:
         "--no-pyi-file"               if not config.pyi              else "",
         "--quiet"                     if config.quiet                else "",
         "--show-modules"              if config.show_mods            else "",
+        *[f"--include-package={pkg}"  for pkg in config.pkgs],
         file,
     ]
     cmd = [i for i in cmd if i]
@@ -484,8 +503,29 @@ def main() -> None:
         except FileNotFoundError:
             err(f"cannot find {dir_} to full copy")
             non_fatal = True
+        except PermissionError:
+            err(f"access denied to {dir_} to full copy")
+            non_fatal = True
+        except OSError as e:
+            err(f"OS error: {e.strerror}")
+            non_fatal = True
         except sh.Error as e:
             err(f"copy error: {e}")
+            non_fatal = True
+
+    for file in config.raw_files:
+        try:
+            file_abs = os.path.abspath(os.path.expanduser(file))
+            sh.copy2(file_abs, build_dir)
+            debug(f"raw-copied {file}")
+        except FileNotFoundError:
+            err(f"cannot find {file} to raw copy")
+            non_fatal = True
+        except PermissionError:
+            err(f"access denied to {file} to raw copy")
+            non_fatal = True
+        except OSError as e:
+            err(f"OS error: {e.strerror}")
             non_fatal = True
 
     # run output program
