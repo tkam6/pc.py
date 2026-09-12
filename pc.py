@@ -127,7 +127,7 @@ class Config:
     dry_run     : bool       = False
     force       : bool       = False
     keep_tmp    : bool       = True
-    log_lvl     : int        = WARN
+    log_lvl     : int        = INFO
     lto         : bool       = False
     mode        : str        = "standalone"
     out_filename: str | None = None
