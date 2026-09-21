@@ -10,7 +10,6 @@ import sys
 import tomllib as tl
 import typing as ty
 
-
 ###############################################################################
 ### CONSTANTS AND ERROR CODES
 ###############################################################################
@@ -85,7 +84,7 @@ else:
     PROG = sys.argv[0]
     # Nuitka overwrites sys.argv[0]
     if "__compiled__" in locals():
-        PROG = __compiled__.original_argv0
+        PROG = __compiled__.original_argv0         # noqa: F821
 USER_DIR = pwd.getpwuid(os.getuid()).pw_dir
 
 
@@ -186,20 +185,20 @@ def fatal(*msg: str, ret: int) -> ty.NoReturn:
 ### CONFIG FILE
 ###############################################################################
 
-def read_toml_file(filepath: str) -> dict[str, ty.Any] | ty.NoReturn:
+def read_toml_file(filepath: str) -> dict[str, ty.Any]:
     try:
-        contents =  tl.load(f := open(filepath, "rb"))
-        f.close()
+        with open(filepath, "rb") as f:
+            contents =  tl.load(f)
         return contents
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         pass
-    except PermissionError as e:
+    except PermissionError:
         fatal(f"access denied: {filepath}", ret=RC.ACCESS_DENIED)
-    except IsADirectoryError as e:
+    except IsADirectoryError:
         fatal(f"is a directory: {filepath}", ret=RC.IS_A_DIR)
     except OSError as e:
         fatal(f"OS error; {e.strerror}", ret=RC.OS_ERR)
-    except tl.TOMLDecodeError as e:
+    except tl.TOMLDecodeError:
         fatal(f"cannot read TOML: {filepath}", ret=RC.TOML_DECODE_ERR)
     return {}
 
@@ -207,7 +206,7 @@ def read_toml_file(filepath: str) -> dict[str, ty.Any] | ty.NoReturn:
 def get_config_from_toml(
         config_obj: "Config",
         toml_data: dict[str, ty.Any]
-    ) -> "Config" | ty.NoReturn:
+    ) -> "Config":
     for key, value in toml_data.items():
         if key in VALID_TOML_BOOL_KEYS and not isinstance(value, bool):
             fatal(
@@ -224,7 +223,7 @@ def get_config_from_toml(
                 f"expected list of strs for key {key} in config file, got {value.__class__.__name__}",
                 ret=RC.TOML_INV_TYPE,
             )
-        elif key in VALID_TOML_LIST_KEYS and (tmp := [i for i in value if not isinstance(i, str)]):
+        elif key in VALID_TOML_LIST_KEYS and [i for i in value if not isinstance(i, str)]:
             fatal(
                 f"expected list of strs key {key} in config file, got other types",
                 ret=RC.TOML_INV_TYPE,
@@ -248,10 +247,9 @@ def get_config_from_toml(
 ### ARGV PARSING
 ###############################################################################
 
-def parse_args(config_obj: Config) -> Config:
+def parse_argv(config_obj: Config) -> Config:
     argv              = sys.argv[1:]
     parse_opts_flags  = True
-    len_argv          = len(argv)
     i                 = 0
     alr_set_full_dirs = bool(config_obj.full_dirs)
     alr_set_raw_files = bool(config_obj.raw_files)
@@ -372,13 +370,13 @@ def main() -> None:
     config    = Config()
     toml_data = read_toml_file(toml_file)
     config    = get_config_from_toml(config, toml_data)
-    config    = parse_args(config)
+    config    = parse_argv(config)
 
     global LOG_LVL
     LOG_LVL = config.log_lvl
     debug(f"cwd: {cwd}")
     debug(f"toml config file: {toml_file}")
-    debug(f"final config: {str(config)}")
+    debug(f"final config: {config}")
 
     # not sys.executable as it'll point to current prog when compiled
     python_xble = sh.which("python3")
@@ -404,7 +402,8 @@ def main() -> None:
 
     chk_nuitka = sp.run(
         [python_xble, "-m", "nuitka", "--help"],
-        capture_output=True
+        capture_output=True,
+        check=False,
     )
     if chk_nuitka.returncode != 0:
         fatal("cannot find Nuitka", ret=RC.NO_NUITKA)
@@ -475,7 +474,7 @@ def main() -> None:
       )
 
     # actually fucking run
-    proc_done = sp.run(cmd)
+    proc_done = sp.run(cmd, check=False)
     if proc_done.returncode != 0:
         fatal(
             f"errors encountered; Nuitka exited with code {proc_done.returncode}",
@@ -535,7 +534,7 @@ def main() -> None:
         else:
             out_xble = os.path.join(build_dir, out_filename)
             info(f"running {out_xble}")
-            sp.run([out_xble])
+            sp.run([out_xble], check=False)
 
 
 if __name__ == "__main__":
