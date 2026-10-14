@@ -33,6 +33,8 @@ MAX_ARGS = 1
 VALID_FLAGS = {
     "--",
     "--clang",
+    "--debug-build",
+    "--no-debug-immortal-assumptions",
     "--onefile",
     "--standalone",
     "--keep-pyi-file",
@@ -117,26 +119,28 @@ class RC(enum.IntEnum):
 
 @dcs.dataclass
 class Config:
-    args        : list[str]  = dcs.field(default_factory=list)
-    build_dir   : str | None = None
-    compiler    : str | None = None
-    file        : str | None = None
-    full_dirs   : list[str]  = dcs.field(default_factory=list)
-    docstrs     : bool       = False
-    dry_run     : bool       = False
-    force       : bool       = False
-    keep_tmp    : bool       = True
-    log_lvl     : int        = INFO
-    lto         : bool       = False
-    mode        : str        = "standalone"
-    out_filename: str | None = None
-    quiet       : bool       = False
-    pkgs        : list[str]  = dcs.field(default_factory=list)
-    pyi         : bool       = False
-    raw_files   : list[str]  = dcs.field(default_factory=list)
-    rename      : bool       = True
-    run         : bool       = False
-    show_mods   : bool       = False
+    args                      : list[str]  = dcs.field(default_factory=list)
+    build_dir                 : str | None = None
+    compiler                  : str | None = None
+    debug_build               : bool       = False
+    debug_immortal_assumptions: bool       = True
+    file                      : str | None = None
+    full_dirs                 : list[str]  = dcs.field(default_factory=list)
+    docstrs                   : bool       = False
+    dry_run                   : bool       = False
+    force                     : bool       = False
+    keep_tmp                  : bool       = True
+    log_lvl                   : int        = INFO
+    lto                       : bool       = False
+    mode                      : str        = "standalone"
+    out_filename              : str | None = None
+    quiet                     : bool       = False
+    pkgs                      : list[str]  = dcs.field(default_factory=list)
+    pyi                       : bool       = False
+    raw_files                 : list[str]  = dcs.field(default_factory=list)
+    rename                    : bool       = True
+    run                       : bool       = False
+    show_mods                 : bool       = False
 
 
 def condense_path(path: str) -> str:
@@ -309,6 +313,10 @@ def parse_argv(config_obj: Config) -> Config:
                 config_obj.mode = "onefile"
             case "--clang":
                 config_obj.compiler = "clang"
+            case "--debug-build":
+                config_obj.debug_build = True
+            case "--no-debug-immortal-assumptions":
+                config_obj.debug_immortal_assumptions = False
             # options
             case "-b" | "--build-dir":
                 config_obj.build_dir = argv[i + 1]
@@ -418,14 +426,16 @@ def main() -> None:
         f"--output-dir={cwd}",
         f"--output-filename={out_filename}",
         "--no-deployment-flag=self-execution",
-        "--python-flag=no_docstrings" if not config.docstrs          else "",
-        "--lto=yes"                   if config.lto                  else "--lto=no",
-        f"--{config.compiler}"        if config.compiler is not None else "",
-        "--remove-output"             if not config.keep_tmp         else "",
-        "--no-pyi-file"               if not config.pyi              else "",
-        "--quiet"                     if config.quiet                else "",
-        "--show-modules"              if config.show_mods            else "",
-        *[f"--include-package={pkg}"  for pkg in config.pkgs],
+        "--debug"                         if config.debug_build                    else "",
+        "--no-debug-immortal-assumptions" if not config.debug_immortal_assumptions else ""
+        "--python-flag=no_docstrings"     if not config.docstrs                    else "",
+        "--lto=yes"                       if config.lto                            else "--lto=no",
+        f"--{config.compiler}"            if config.compiler is not None           else "",
+        "--remove-output"                 if not config.keep_tmp                   else "",
+        "--no-pyi-file"                   if not config.pyi                        else "",
+        "--quiet"                         if config.quiet                          else "",
+        "--show-modules"                  if config.show_mods                      else "",
+        *[f"--include-package={pkg}"      for pkg in config.pkgs],
         file,
     ]
     cmd = [i for i in cmd if i]
