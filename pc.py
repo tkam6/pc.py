@@ -34,10 +34,11 @@ VALID_FLAGS = {
     "--",
     "--clang",
     "--debug-build",
+    "--debugger",
+    "--keep-pyi-file",
     "--no-debug-immortal-assumptions",
     "--onefile",
     "--standalone",
-    "--keep-pyi-file",
     "-d", "--debug",
     "-f", "--force",
     "-h", "--help",
@@ -123,6 +124,7 @@ class Config:
     build_dir                 : str | None = None
     compiler                  : str | None = None
     debug_build               : bool       = False
+    debugger                  : bool       = False
     debug_immortal_assumptions: bool       = True
     file                      : str | None = None
     full_dirs                 : list[str]  = dcs.field(default_factory=list)
@@ -293,8 +295,6 @@ def parse_argv(config_obj: Config) -> Config:
                 config_obj.lto = True
             case "-m" | "--show-modules":
                 config_obj.show_mods = True
-            case "--keep-pyi-file":
-                config_obj.pyi = True
             case "-q" | "--quiet":
                 config_obj.quiet = True
             case "-R" | "--no-rename":
@@ -307,16 +307,20 @@ def parse_argv(config_obj: Config) -> Config:
                 config_obj.keep_tmp = False
             case "-u" | "--dry-run":
                 config_obj.dry_run = True
-            case "--standalone":
-                config_obj.mode = "standalone"
-            case "--onefile":
-                config_obj.mode = "onefile"
             case "--clang":
                 config_obj.compiler = "clang"
             case "--debug-build":
                 config_obj.debug_build = True
+            case "--debugger":
+                config_obj.debugger = True
+            case "--keep-pyi-file":
+                config_obj.pyi = True
             case "--no-debug-immortal-assumptions":
                 config_obj.debug_immortal_assumptions = False
+            case "--onefile":
+                config_obj.mode = "onefile"
+            case "--standalone":
+                config_obj.mode = "standalone"
             # options
             case "-b" | "--build-dir":
                 config_obj.build_dir = argv[i + 1]
@@ -427,6 +431,7 @@ def main() -> None:
         f"--output-filename={out_filename}",
         "--no-deployment-flag=self-execution",
         "--debug"                         if config.debug_build                    else "",
+        "--debugger"                      if config.debugger                       else "",
         "--no-debug-immortal-assumptions" if not config.debug_immortal_assumptions else ""
         "--python-flag=no_docstrings"     if not config.docstrs                    else "",
         "--lto=yes"                       if config.lto                            else "--lto=no",
