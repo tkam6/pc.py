@@ -46,6 +46,7 @@ VALID_FLAGS = {
     "-l", "--enable-lto",
     "-m", "--show-modules",
     "-q", "--quiet",
+    "-Q", "--loud",
     "-R", "--no-rename",
     "-s", "--keep-docstrings",
     "-r", "--run",
@@ -297,6 +298,8 @@ def parse_argv(config_obj: Config) -> Config:
                 config_obj.show_mods = True
             case "-q" | "--quiet":
                 config_obj.quiet = True
+            case "-Q" | "--loud":
+                config_obj.quiet = False
             case "-R" | "--no-rename":
                 config_obj.rename = False
             case "-r" | "--run":
