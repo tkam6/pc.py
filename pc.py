@@ -14,17 +14,17 @@ import typing as ty
 ### CONSTANTS AND ERROR CODES
 ###############################################################################
 
-ANSI_RESET    = "\x1b[0m"
-ANSI_BOLD     = "\x1b[1m"
-ANSI_RED_4    = "\x1b[91m"
-ANSI_GREEN_4  = "\x1b[92m"
+ANSI_RESET = "\x1b[0m"
+ANSI_BOLD = "\x1b[1m"
+ANSI_RED_4 = "\x1b[91m"
+ANSI_GREEN_4 = "\x1b[92m"
 ANSI_YELLOW_4 = "\x1b[93m"
 
-DEBUG   = 10
-INFO    = 20
-WARN    = 30
-ERR     = 40
-FATAL   = 50
+DEBUG = 10
+INFO = 20
+WARN = 30
+ERR = 40
+FATAL = 50
 LOG_LVL = INFO
 
 MIN_ARGS = 0
@@ -54,32 +54,33 @@ VALID_FLAGS = {
     "-u", "--dry-run",
 }
 VALID_OPTS = {
+    "-a", "--raw-dir",
     "-b", "--build-dir",
+    "-e", "--entry",
     "-n", "--output-filename",
     "-p", "--package",
-    "-a", "--raw-dir",
     "-y", "--full-dir",
 }
 VALID_TOML_BOOL_KEYS = {
-    "force"          : "force",
-    "keep-pyi-file"  : "pyi",
-    "keep-tmp-dir"   : "keep_tmp",
+    "force": "force",
+    "keep-pyi-file": "pyi",
+    "keep-tmp-dir": "keep_tmp",
     "keep-docstrings": "docstrs",
-    "lto"            : "lto",
-    "quiet"          : "quiet",
-    "run"            : "run",
-    "rename"         : "rename",
-    "show-modules"   : "show_mods",
+    "lto": "lto",
+    "quiet": "quiet",
+    "run": "run",
+    "rename": "rename",
+    "show-modules": "show_mods",
 }
 VALID_TOML_STR_KEYS = {
     "build-directory": "build_dir",
     "output-filename": "out_filename",
-    "file"           : "file",
+    "file": "file",
 }
 VALID_TOML_LIST_KEYS = {
     "full-directories": "full_dirs",
-    "raw-files"       : "raw_files",
-    "packages"        : "pkgs",
+    "raw-files": "raw_files",
+    "packages": "pkgs",
 }
 
 if not sys.argv:
@@ -93,26 +94,27 @@ USER_DIR = pwd.getpwuid(os.getuid()).pw_dir
 
 
 class RC(enum.IntEnum):
-    ALL_GOOD              = enum.auto(0)
-    NO_PYTHON             = enum.auto()
-    NO_NUITKA             = enum.auto()
-    EXPECTED_OPT_VAL      = enum.auto()
-    UNKNOWN_OPT_VAL       = enum.auto()
-    ARG_UNDERFLOW         = enum.auto()
-    ARG_OVERFLOW          = enum.auto()
-    BUILD_DIR_EXISTS      = enum.auto()
-    TMP_DIR_EXISTS        = enum.auto()
+    ALL_GOOD = enum.auto(0)
+    NO_PYTHON = enum.auto()
+    NO_NUITKA = enum.auto()
+    EXPECTED_OPT_VAL = enum.auto()
+    UNKNOWN_OPT_VAL = enum.auto()
+    ARG_UNDERFLOW = enum.auto()
+    ARG_OVERFLOW = enum.auto()
+    BUILD_DIR_EXISTS = enum.auto()
+    TMP_DIR_EXISTS = enum.auto()
     CANT_REMOVE_BUILD_DIR = enum.auto()
-    CANT_TMP_BUILD_DIR    = enum.auto()
-    SOME_FUCKING_ERR      = enum.auto()
-    FILE_404              = enum.auto()
-    DIR_404               = enum.auto()
-    IS_A_DIR              = enum.auto()
-    ACCESS_DENIED         = enum.auto()
-    OS_ERR                = enum.auto()
-    TOML_DECODE_ERR       = enum.auto()
-    TOML_INV_TYPE         = enum.auto()
-    NO_INPUT_FILE         = enum.auto()
+    CANT_TMP_BUILD_DIR = enum.auto()
+    SOME_FUCKING_ERR = enum.auto()
+    FILE_404 = enum.auto()
+    DIR_404 = enum.auto()
+    IS_A_DIR = enum.auto()
+    ACCESS_DENIED = enum.auto()
+    OS_ERR = enum.auto()
+    TOML_DECODE_ERR = enum.auto()
+    TOML_INV_TYPE = enum.auto()
+    NO_INPUT_FILE = enum.auto()
+    NO_SUCH_ENTRY = enum.auto()
 
 
 ###############################################################################
@@ -121,29 +123,30 @@ class RC(enum.IntEnum):
 
 @dcs.dataclass
 class Config:
-    args                      : list[str]  = dcs.field(default_factory=list)
-    build_dir                 : str | None = None
-    compiler                  : str | None = None
-    debug_build               : bool       = False
-    debugger                  : bool       = False
-    debug_immortal_assumptions: bool       = True
-    file                      : str | None = None
-    full_dirs                 : list[str]  = dcs.field(default_factory=list)
-    docstrs                   : bool       = False
-    dry_run                   : bool       = False
-    force                     : bool       = False
-    keep_tmp                  : bool       = True
-    log_lvl                   : int        = INFO
-    lto                       : bool       = False
-    mode                      : str        = "standalone"
-    out_filename              : str | None = None
-    quiet                     : bool       = False
-    pkgs                      : list[str]  = dcs.field(default_factory=list)
-    pyi                       : bool       = False
-    raw_files                 : list[str]  = dcs.field(default_factory=list)
-    rename                    : bool       = True
-    run                       : bool       = False
-    show_mods                 : bool       = False
+    args: list[str] = dcs.field(default_factory=list)
+    build_dir: str | None = None
+    compiler: str | None = None
+    debug_build: bool = False
+    debugger: bool = False
+    debug_immortal_assumptions: bool = True
+    entry: str = "default"
+    file: str | None = None
+    full_dirs: list[str] = dcs.field(default_factory=list)
+    docstrs: bool = False
+    dry_run: bool = False
+    force: bool = False
+    keep_tmp: bool = True
+    log_lvl: int = INFO
+    lto: bool = False
+    mode: str = "standalone"
+    out_filename: str | None = None
+    quiet: bool = False
+    pkgs: list[str] = dcs.field(default_factory=list)
+    pyi: bool = False
+    raw_files: list[str] = dcs.field(default_factory=list)
+    rename: bool = True
+    run: bool = False
+    show_mods: bool = False
 
 
 def condense_path(path: str) -> str:
@@ -151,9 +154,9 @@ def condense_path(path: str) -> str:
 
 
 def pretty_prn_list_of_str(
-        l          : list[str],
-        indent     : int = 0,
-        indent_size: int = 4
+        l: list[str],
+        indent: int = 0,
+        indent_size: int = 4,
     ) -> None:
     indent_block = indent_size * " "
     print(indent * indent_block + "[")
@@ -210,11 +213,11 @@ def read_toml_file(filepath: str) -> dict[str, ty.Any]:
     return {}
 
 
-def get_config_from_toml(
-        config_obj: "Config",
-        toml_data: dict[str, ty.Any]
-    ) -> "Config":
-    for key, value in toml_data.items():
+def get_config_from_toml_table(
+        config_obj: Config,
+        toml_table: dict[str, object],
+    ) -> Config:
+    for key, value in toml_table.items():
         if key in VALID_TOML_BOOL_KEYS and not isinstance(value, bool):
             fatal(
                 f"expected bool for key {key} in config file, got {value.__class__.__name__}",
@@ -255,12 +258,12 @@ def get_config_from_toml(
 ###############################################################################
 
 def parse_argv(config_obj: Config) -> Config:
-    argv              = sys.argv[1:]
+    argv= sys.argv[1:]
     parse_opts_flags  = True
-    i                 = 0
+    i = 0
     alr_set_full_dirs = bool(config_obj.full_dirs)
     alr_set_raw_files = bool(config_obj.raw_files)
-    alr_set_pkgs      = bool(config_obj.pkgs)
+    alr_set_pkgs = bool(config_obj.pkgs)
 
     while i < len(argv):
         param = argv[i]
@@ -328,6 +331,9 @@ def parse_argv(config_obj: Config) -> Config:
             case "-b" | "--build-dir":
                 config_obj.build_dir = argv[i + 1]
                 i += 1
+            case "-e" | "--entry":
+                config_obj.entry = argv[i + 1]
+                i += 1
             case "-n" | "--output-filename":
                 config_obj.out_filename = argv[i + 1]
                 i += 1
@@ -381,11 +387,16 @@ def main() -> None:
 
     cwd = os.getcwd()
     toml_file = os.path.join(cwd, "pc-config.toml")
+    # TODO: this parses argv twice. dunno how to not do that
+    toml_table_name = parse_argv(Config()).entry
 
-    config    = Config()
+    config = Config()
     toml_data = read_toml_file(toml_file)
-    config    = get_config_from_toml(config, toml_data)
-    config    = parse_argv(config)
+    toml_table = toml_data.get(toml_table_name)
+    if toml_table is None or not isinstance(toml_table, dict):
+        fatal(f"table {toml_table_name} does not exist in {toml_file}")
+    config = get_config_from_toml_table(config, toml_table)
+    config = parse_argv(config)
 
     global LOG_LVL
     LOG_LVL = config.log_lvl
@@ -407,13 +418,13 @@ def main() -> None:
     file = os.path.abspath(os.path.expanduser(file))
     info(f"using input file {file}")
 
-    base_nm        = os.path.splitext(os.path.basename(file))[0]
-    build_dir_nm   = ("build" if config.build_dir is None else config.build_dir)
-    out_filename   = (base_nm if config.out_filename is None else config.out_filename)
-    build_dir      = os.path.join(cwd, build_dir_nm)
+    base_nm = os.path.splitext(os.path.basename(file))[0]
+    build_dir_nm = ("build" if config.build_dir is None else config.build_dir)
+    out_filename = (base_nm if config.out_filename is None else config.out_filename)
+    build_dir = os.path.join(cwd, build_dir_nm)
     build_dir_disp = condense_path(os.path.abspath(build_dir))
-    tmp_dir        = os.path.join(cwd, "tmp")
-    tmp_dir_disp   = condense_path(os.path.abspath(tmp_dir))
+    tmp_dir = os.path.join(cwd, "tmp")
+    tmp_dir_disp = condense_path(os.path.abspath(tmp_dir))
 
     chk_nuitka = sp.run(
         [python_xble, "-m", "nuitka", "--help"],
@@ -433,17 +444,17 @@ def main() -> None:
         f"--output-dir={cwd}",
         f"--output-filename={out_filename}",
         "--no-deployment-flag=self-execution",
-        "--debug"                         if config.debug_build                    else "",
-        "--debugger"                      if config.debugger                       else "",
+        "--debug" if config.debug_build else "",
+        "--debugger" if config.debugger else "",
         "--no-debug-immortal-assumptions" if not config.debug_immortal_assumptions else ""
-        "--python-flag=no_docstrings"     if not config.docstrs                    else "",
-        "--lto=yes"                       if config.lto                            else "--lto=no",
-        f"--{config.compiler}"            if config.compiler is not None           else "",
-        "--remove-output"                 if not config.keep_tmp                   else "",
-        "--no-pyi-file"                   if not config.pyi                        else "",
-        "--quiet"                         if config.quiet                          else "",
-        "--show-modules"                  if config.show_mods                      else "",
-        *[f"--include-package={pkg}"      for pkg in config.pkgs],
+        "--python-flag=no_docstrings" if not config.docstrs else "",
+        "--lto=yes" if config.lto else "--lto=no",
+        f"--{config.compiler}" if config.compiler is not None else "",
+        "--remove-output" if not config.keep_tmp else "",
+        "--no-pyi-file" if not config.pyi else "",
+        "--quiet" if config.quiet else "",
+        "--show-modules" if config.show_mods else "",
+        *[f"--include-package={pkg}" for pkg in config.pkgs],
         file,
     ]
     cmd = [i for i in cmd if i]
@@ -502,11 +513,11 @@ def main() -> None:
     # rename build.dist to build, build.build to tmp
     if config.rename:
         if config.keep_tmp:
-            build_dot_build      = os.path.join(cwd, f"{build_dir}.build")
+            build_dot_build = os.path.join(cwd, f"{build_dir}.build")
             build_dot_build_disp = condense_path(os.path.abspath(build_dot_build))
             sh.move(build_dot_build, tmp_dir)
             info(f"moved {build_dot_build_disp} to {tmp_dir_disp}")
-        build_dot_dist      = os.path.join(cwd, f"{build_dir}.dist")
+        build_dot_dist = os.path.join(cwd, f"{build_dir}.dist")
         build_dot_dist_disp = condense_path(os.path.abspath(build_dot_dist))
         sh.move(build_dot_dist, build_dir)
         info(f"moved {build_dot_dist_disp} to {build_dir_disp}")
