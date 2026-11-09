@@ -392,9 +392,11 @@ def main() -> None:
 
     config = Config()
     toml_data = read_toml_file(toml_file)
-    toml_table = toml_data.get(toml_table_name)
-    if toml_table is None or not isinstance(toml_table, dict):
-        fatal(f"table {toml_table_name} does not exist in {toml_file}")
+    toml_table = {}
+    if toml_data != {}:
+        toml_table = toml_data.get(toml_table_name)
+        if toml_table is None or not isinstance(toml_table, dict):
+            fatal(f"table {toml_table_name!r} does not exist in {toml_file!r}", ret=RC.NO_SUCH_ENTRY)
     config = get_config_from_toml_table(config, toml_table)
     config = parse_argv(config)
 
