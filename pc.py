@@ -45,11 +45,12 @@ VALID_FLAGS = {
     "-i", "--info",
     "-l", "--enable-lto",
     "-m", "--show-modules",
+    "-N", "--no-rename",
     "-q", "--quiet",
     "-Q", "--loud",
-    "-R", "--no-rename",
     "-s", "--keep-docstrings",
     "-r", "--run",
+    "-R", "--no-run",
     "-T", "--remove-tmp-dir",
     "-u", "--dry-run",
 }
@@ -303,10 +304,12 @@ def parse_argv(config_obj: Config) -> Config:
                 config_obj.quiet = True
             case "-Q" | "--loud":
                 config_obj.quiet = False
-            case "-R" | "--no-rename":
+            case "-N" | "--no-rename":
                 config_obj.rename = False
             case "-r" | "--run":
                 config_obj.run = True
+            case "-R" | "--no-run":
+                config_obj.run = False
             case "-s" | "--keep-docstrings":
                 config_obj.docstrs = True
             case "-T" | "--remove-tmp-dir":
